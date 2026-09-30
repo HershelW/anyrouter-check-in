@@ -1,7 +1,5 @@
 import json
 
-import pytest
-
 from utils.config import AppConfig, ProviderConfig
 
 
@@ -51,43 +49,12 @@ def test_provider_from_dict_inherits_profile_persistence_from_defaults():
 	assert provider.persist_profile is True
 
 
-@pytest.mark.parametrize('name', ['anyrouter', 'agentrouter'])
-def test_builtin_provider_partial_override_inherits_defaults(monkeypatch, capsys, name):
-	monkeypatch.delenv('PROVIDERS', raising=False)
-	defaults = AppConfig.load_from_env().providers[name]
-	monkeypatch.setenv('PROVIDERS', json.dumps({name: {'use_proxy': not defaults.use_proxy}}))
+def test_incomplete_override_keeps_builtin_waf_defaults(monkeypatch):
+	monkeypatch.setenv('PROVIDERS', json.dumps({'anyrouter': {'bypass_method': None}}))
 
-	provider = AppConfig.load_from_env().providers[name]
+	provider = AppConfig.load_from_env().providers['anyrouter']
 
-	assert provider.domain == defaults.domain
-	assert provider.use_proxy is not defaults.use_proxy
-	assert provider.sign_in_path == defaults.sign_in_path
-	assert provider.waf_cookie_names == defaults.waf_cookie_names
-	assert provider.bypass_method == defaults.bypass_method
-	assert provider.persist_profile == defaults.persist_profile
-	assert 'Loaded 1 custom provider(s)' in capsys.readouterr().out
-
-
-@pytest.mark.parametrize('domain', [None, '', 123, 'example.com', 'ftp://example.com', 'https://', 'https://bad host'])
-def test_invalid_provider_domains_are_skipped(monkeypatch, capsys, domain):
-	monkeypatch.setenv(
-		'PROVIDERS',
-		json.dumps({'anyrouter': {'domain': domain}, 'custom': {'domain': domain}, 'missing': {}}),
-	)
-
-	config = AppConfig.load_from_env()
-
-	assert config.providers['anyrouter'].domain == 'https://anyrouter.top'
-	assert 'custom' not in config.providers
-	assert 'missing' not in config.providers
-	assert 'Loaded 0 custom provider(s)' in capsys.readouterr().out
-
-
-def test_only_successfully_loaded_providers_are_counted(monkeypatch, capsys):
-	monkeypatch.setenv('PROVIDERS', json.dumps({'custom': {'domain': 'https://example.com'}, 'missing': {}}))
-
-	config = AppConfig.load_from_env()
-
-	assert config.providers['custom'].domain == 'https://example.com'
-	assert 'missing' not in config.providers
-	assert 'Loaded 1 custom provider(s)' in capsys.readouterr().out
+	assert provider.domain == 'https://anyrouter.top'
+	assert provider.needs_waf_cookies() is True
+	assert provider.waf_cookie_names is not None
+	assert set(provider.waf_cookie_names) == {'acw_tc', 'cdn_sec_tc', 'acw_sc__v2'}

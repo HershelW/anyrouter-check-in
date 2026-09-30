@@ -1,5 +1,8 @@
 name: AnyRouter 自动签到
 on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/checkin.yml]
   schedule:
     - cron: '0 0,6,12,18 * * *'
   workflow_dispatch:
