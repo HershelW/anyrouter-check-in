@@ -1,8 +1,5 @@
 name: AnyRouter 自动签到
 on:
-  push:
-    branches: [codex/verify-checkin-20260930-0621]
-    paths: [.github/workflows/checkin.yml]
   schedule:
     - cron: '0 0,6,12,18 * * *'
   workflow_dispatch:
@@ -25,8 +22,6 @@ jobs:
       DEBUG_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug == 'true' && 'true' || 'false' }}
     steps:
     - uses: actions/checkout@v6
-      with:
-        ref: c518cef753a8febf8791301d3c00b0add00fb892
 
     - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
       with:
