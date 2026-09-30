@@ -7,6 +7,7 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Dict, List, Literal
+from urllib.parse import urlsplit
 
 
 @dataclass
@@ -48,11 +49,17 @@ class ProviderConfig:
 		- 基础: {"domain": "https://example.com"}
 		- 完整: {"domain": "https://example.com", "login_path": "/login", "use_proxy": true, ...}
 		"""
+		domain = data.get('domain', defaults.domain if defaults else None)
+		if not isinstance(domain, str) or not domain or any(char.isspace() for char in domain):
+			raise ValueError('domain must be a non-empty HTTP(S) URL')
+		parsed_domain = urlsplit(domain)
+		if parsed_domain.scheme not in ('http', 'https') or not parsed_domain.hostname:
+			raise ValueError('domain must be a non-empty HTTP(S) URL')
 		default_use_proxy = defaults.use_proxy if defaults else False
 		default_persist_profile = defaults.persist_profile if defaults else False
 		return cls(
 			name=name,
-			domain=data['domain'],
+			domain=domain,
 			login_path=data.get('login_path', defaults.login_path if defaults else '/login'),
 			sign_in_path=data.get('sign_in_path', defaults.sign_in_path if defaults else '/api/user/sign_in'),
 			user_info_path=data.get('user_info_path', defaults.user_info_path if defaults else '/api/user/self'),
@@ -119,6 +126,7 @@ class AppConfig:
 					return cls(providers=providers)
 
 				# 解析自定义 providers,会覆盖默认配置
+				loaded_count = 0
 				for name, provider_data in providers_data.items():
 					try:
 						providers[name] = ProviderConfig.from_dict(
@@ -126,11 +134,12 @@ class AppConfig:
 							provider_data,
 							defaults=providers.get(name),
 						)
+						loaded_count += 1
 					except Exception as e:
 						print(f'[WARNING] Failed to parse provider "{name}": {e}, skipping')
 						continue
 
-				print(f'[INFO] Loaded {len(providers_data)} custom provider(s) from PROVIDERS environment variable')
+				print(f'[INFO] Loaded {loaded_count} custom provider(s) from PROVIDERS environment variable')
 			except json.JSONDecodeError as e:
 				print(
 					f'[WARNING] Failed to parse PROVIDERS environment variable: {e}, using default configuration only'

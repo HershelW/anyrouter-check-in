@@ -98,7 +98,9 @@
 
 ![获取 cookies](./assets/request-session.png)
 
-通过 F12 工具，切到 Network 面板，可以过滤下，只要 Fetch/XHR，找到带 `New-Api-User`，这个值正常是 5 位数，如果是负数或者个位数，正常是未登录。
+通过 F12 工具，切到 Network 面板，可以过滤下，只要 Fetch/XHR，从已登录账号成功的 `/api/user/self` 请求中获取请求头 `New-Api-User`，填写为同一账号的 `api_user`，不要根据位数猜测。
+
+遇到 HTTP 401 时，重新登录对应站点，同时刷新 `cookies.session` 和匹配的 `api_user`，在 GitHub 仓库 **Settings → Secrets and variables → Actions** 中更新 `ANYROUTER_ACCOUNTS`。如果 `production` Environment 中配置了同名 secret，应更新该环境里的值。不要将凭据发到聊天、Issue 或日志中。WAF cookies 获取成功不代表登录 session 仍然有效；脚本会在用户信息接口返回 401 时停止该账号后续请求，并在失败通知中提示更新凭据。
 
 ![获取 api_user](./assets/request-api-user.png)
 

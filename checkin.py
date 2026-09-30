@@ -41,6 +41,11 @@ from utils.proxy import get_playwright_proxy, get_proxy_server
 load_dotenv()
 
 BALANCE_HASH_FILE = 'balance_hash.txt'
+AUTHENTICATION_ERROR = (
+	'HTTP 401: Authentication failed; the session may have expired or api_user may not match. '
+	'Sign in again, then update cookies.session and the matching New-Api-User (api_user) '
+	'in GitHub Actions secret ANYROUTER_ACCOUNTS.'
+)
 
 
 def load_balance_hash():
@@ -251,7 +256,13 @@ def get_user_info(client, headers, user_info_url: str):
 					'used_quota': used_quota,
 					'display': f':money: Current balance: ${quota}, Used: ${used_quota}',
 				}
-		return {'success': False, 'error': f'Failed to get user info: HTTP {response.status_code}'}
+		return {
+			'success': False,
+			'status_code': response.status_code,
+			'error': AUTHENTICATION_ERROR
+			if response.status_code == 401
+			else f'Failed to get user info: HTTP {response.status_code}',
+		}
 	except Exception as e:
 		return {'success': False, 'error': f'Failed to get user info: {str(e)[:50]}...'}
 
@@ -288,6 +299,10 @@ def execute_check_in(client, account_name: str, provider_config, headers: dict):
 	response = client.post(sign_in_url, headers=checkin_headers, timeout=30)
 
 	print(f'[RESPONSE] {account_name}: Response status code {response.status_code}')
+
+	if response.status_code == 401:
+		print(f'[FAILED] {account_name}: {AUTHENTICATION_ERROR}')
+		return False
 
 	if response.status_code == 200:
 		try:
@@ -455,8 +470,13 @@ def run_check_in_requests(
 			elif user_info_before:
 				print(user_info_before.get('error', 'Unknown error'))
 
+			if user_info_before and user_info_before.get('status_code') == 401:
+				return False, user_info_before, None
+
 			if provider_config.needs_manual_check_in():
 				success = execute_check_in(client, account_name, provider_config, headers)
+				if not success:
+					return False, user_info_before, None
 				user_info_after = get_user_info(client, headers, user_info_url)
 				return success, user_info_before, user_info_after
 
@@ -566,6 +586,8 @@ async def main():
 					account_result += f'\n{user_info_after["display"]}'
 				elif user_info_after:
 					account_result += f'\n{user_info_after.get("error", "Unknown error")}'
+				elif user_info_before and not user_info_before.get('success'):
+					account_result += f'\n{user_info_before.get("error", "Unknown error")}'
 				notification_content.append(account_result)
 
 		except Exception as e:
